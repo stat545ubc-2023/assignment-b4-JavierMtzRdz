@@ -1,0 +1,296 @@
+`pig_latinator` function
+================
+Javier Mtz.-Rdz.
+
+# Setup
+
+For this assignment, we will need to load the following packages.
+
+``` r
+library(tidyverse)
+library(tidytext)
+library(testthat)
+```
+
+# Creating a Function for Pig Latin Transformation
+
+In this section, I developed a function to convert words or sentences
+into a customized Pig Latin format.
+
+*Component Implementation*. The function implements sthe rules present
+on [Wikipedia](https://en.wikipedia.org/wiki/Pig_Latin):
+
+- For words starting with vowels, it moves initial vowel(s) along with
+  the first consonant or consonant cluster to the end.
+- For words starting with consonants, it moves the initial consonant or
+  consonant cluster to the end.
+
+*Addition Component*. The additional components include:
+
+- It retains punctuation at the start and end of words.
+- Handles uppercase logic, converting words to uppercase or sentence
+  case as needed.
+- Allows the choice between returning a vector of words or a
+  concatenated string through the concat argument.
+
+``` r
+#' Pig Latinator Function
+#'
+#' The `pig_latinator` function converts words or sentences to a form of Pig Latin.
+#' It retains punctuation and uppercase logic (single-letter words are always 
+#' treated as capitalized words).
+#' 
+#' @param text A character vector containing the text to convert to Pig Latin.
+#' @param addition_rule A character specifying the addition rule for Pig Latin. 
+#' Default is "ay".
+#' @param no_cons A character specifying the addition in case of no consonants 
+#' (it should be a consonant). Default is "w".
+#' @param concat Logical, indicating whether to concatenate the vector of words.
+#' If `TRUE`, the function returns a single string. If `FALSE`, it returns a vector.
+#' Default is `TRUE`.
+#' 
+#' @return A vector of words converted to Pig Latin, or a single string 
+#' if `concat` is `TRUE`.
+#' 
+#' @seealso [Pig Latin on Wikipedia](https://en.wikipedia.org/wiki/Pig_Latin)
+#' @export
+#' @examples
+#'# Basic example
+#'pig_latinator("Hello world")
+#'[1] "Ellohay orldway"
+#'
+#'# Handling punctuation
+#'pig_latinator("This is a test. Does it work?")
+#'[1] "Isthay isay away esttay. Oesday itay orkway?"
+#'
+#'# Managing uppercase and lowercase.
+#'pig_latinator("Sentence with UPPER and lower case.")
+#'[1] "Entencesay ithway ERUPPAY anday owerlay asecay."
+#'
+#'# Different arguments
+#'# Managing uppercase and lowercase.
+#'pig_latinator(c("This", "is a Pig Latin", "vector", " of words"), 
+#'              addition_rule = "ey",
+#'              no_cons = "x",
+#'              concat = F)
+#'[1] "Isthey"   "isey"     "axey"     "Igpey"    "Atinley"  "ectorvey" "EY"
+#'[8] "ofey"     "ordswey" 
+pig_latinator <- function(text,
+                          addition_rule = "ay", 
+                          no_cons = "w",
+                          concat = TRUE) {
+  # Check if input is a character vector
+  if (!is.character(text)) {
+    stop("Input 'text' must be a character vector.")
+  }
+  
+  # Check if addition_rule is character
+  if (!is.character(addition_rule)) {
+    stop("Input 'addition_rule' must be a character.")
+  }
+  
+  # Check if no_cons is character
+  if (!is.character(no_cons)) {
+    stop("Input 'no_cons' must be a character.")
+  }
+  
+  # Check if no_cons is not a consonant
+  if (!stringr::str_detect(no_cons, "[b-df-hj-np-tv-z]|[B-DF-HJ-NP-TV-Z]")) {
+    stop("Input 'no_cons' must be a consonant.")
+  }
+  
+  # Additions as lowercases
+  addition_rule <- stringr::str_to_lower(addition_rule)
+  no_cons <- stringr::str_to_lower(no_cons)
+  
+  # Split and unlist text (in case that more than a word is provided)
+  word <- unlist(stringr::str_split(text, " "))
+  
+  # Vectorized process for each word
+  word <- purrr::map_vec(
+    word,
+    function(w) 
+    {
+      # Remove punctuation at the end and start
+      ent_punct <- stringr::str_extract(w, "[:punct:]$")
+      strt_punct <- stringr::str_extract(w, "^[:punct:]")
+      w <- stringr::str_remove_all(w, "^[:punct:]|[:punct:]$")
+      
+      # Detect uppercase logic
+      cnt_lttr <- stringr::str_count(w, "[:alpha:]")
+      upp_lttr <- stringr::str_count(w, "[:upper:]")
+      upp_first <- stringr::str_count(w, "^[:upper:]")
+      case_upp <- dplyr::case_when(cnt_lttr == 1 & cnt_lttr == upp_lttr ~ "sentence",
+                                    cnt_lttr == upp_lttr ~ "uppercase",
+                                    upp_first == 1 ~ "sentence",
+                                    TRUE ~ "other")
+      w <- stringr::str_to_lower(w)
+      
+      # Convert words beginning with vowels to Pig Latin
+      if (stringr::str_detect(w, "^[aeiou]")) {
+        ext <- stringr::str_extract(w, "^[aeiou]+[b-df-hj-np-tv-z]*")
+        if (!stringr::str_detect(ext, "[b-df-hj-np-tv-z]$")){
+          ext <- stringr::str_c(ext, no_cons)
+        }
+        w <- stringr::str_c(stringr::str_remove(w, "^[aeiou]+[b-df-hj-np-tv-z]*"),
+                            ifelse(is.na(ext), "", ext))
+      } 
+      
+      # Convert words beginning with consonants to Pig Latin
+      if (stringr::str_detect(w, "^[b-df-hj-np-tv-z]")){
+        ext <- stringr::str_extract(w, "^[b-df-hj-np-tv-z]+")
+        w <- stringr::str_c(stringr::str_remove(w, "^[b-df-hj-np-tv-z]+"),
+                            ifelse(is.na(ext), "", ext))
+      }
+      
+      # Add addition_rule
+      w <- stringr::str_c(w, addition_rule)
+      
+      # Add corresponding uppercases
+      w <- dplyr::case_when(case_upp == "uppercase" ~ stringr::str_to_upper(w),
+                            case_upp == "sentence" ~ stringr::str_to_sentence(w),
+                            TRUE ~ w)
+      
+      # Add previously removed punctuation
+      w <- stringr::str_c(ifelse(is.na(strt_punct), "", strt_punct),
+                          w,
+                          ifelse(is.na(ent_punct), "", ent_punct))
+      
+      return(w)
+    })
+  
+  # Concatenate words in case of being true
+  if (concat) word <- stringr::str_c(word, collapse = " ")
+  
+  return(word)
+}
+```
+
+# Examples
+
+The following examples show different uses of the `pig_latinator`
+function.
+
+### Example 1: Translating “The Divine Comedy” to Pig Latin
+
+In this example, we translate the beginning of [“The Divine Comedy” by
+Dante Alighieri from the Project
+Gutenberg](https://dev.gutenberg.org/ebooks/8800) into Pig Latin.
+
+``` r
+# Download the text of "The Divine Comedy" by Dante Alighieri
+book <- read.table("https://dev.gutenberg.org/cache/epub/8800/pg8800.txt",
+                   sep =  "\t",
+                   skip = 168, 
+                   nrows = 17) %>% 
+  rename(txt = 1) 
+
+# Translate to Pig Latin 
+translated_text <- pig_latinator(book$txt)
+
+translated_text
+```
+
+    ## [1] "Inay ethay idwaymay ofay isthay ouray ortalmay ifelay, Iway oundfay emay inay away oomyglay oodway, ayastray Onegay omfray ethay athpay irectday: anday ’eneway otay elltay Itay ereway onay easyay asktay, owhay avagesay ildway Atthay orestfay, owhay obustray anday oughray itsay owthgray, Ichwhay otay ememberray onlyay, myay ismayday Enewsray, inay itternessbay otnay arfay omfray eathday. Etyay otay iscourseday ofay atwhay erethay oodgay efellbay, Allay eelsay illway Iway elateray iscover’dday erethay. Owhay irstfay Iway er’dentay itay Iway arcescay ancay aysay, Uchsay eepyslay ullnessday inay atthay antinstay eigh’dway Myay ensessay ownday, enwhay ethay uetray athpay Iway eftlay, Utbay enwhay away ountain’smay ootfay Iway each’dray, erewhay os’dclay Ethay alleyvay, atthay adhay ierc’dpay myay earthay ithway eaddray, Iway ook’dlay oftalay, anday awsay ishay ouldersshay oadbray Eadyalray estedvay ithway atthay anet’splay eambay, Owhay eadslay allay anderersway afesay oughthray eryevay ayway."
+
+### Example 2: Translating tidytext stopwords to Pig Latin
+
+In this example, we translate [tidytext
+stopwords](https://github.com/juliasilge/tidytext) into Pig Latin.
+Unlike the previous example, we aim to obtain a vector of words.
+
+``` r
+# Get tidytext stopwords
+tdy_txt_sw <- tidytext::stop_words
+
+# Display the first few stopwords
+head(tdy_txt_sw)
+```
+
+    ## # A tibble: 6 × 2
+    ##   word      lexicon
+    ##   <chr>     <chr>  
+    ## 1 a         SMART  
+    ## 2 a's       SMART  
+    ## 3 able      SMART  
+    ## 4 about     SMART  
+    ## 5 above     SMART  
+    ## 6 according SMART
+
+``` r
+# Translate to Pig Latin 
+translated_stopwords <- pig_latinator(tdy_txt_sw$word,
+                                      concat = FALSE)
+head(translated_stopwords)
+```
+
+    ## [1] "away"        "'saway"      "eablay"      "outabay"     "oveabay"    
+    ## [6] "ordingaccay"
+
+### Example 3: Translating “The Divine Comedy” with modified rules
+
+Here, we translate the initial text of “The Divine Comedy” to Pig Latin
+using different rules for added letters.
+
+``` r
+# Translate to Pig Latin with altered rules
+modified_pig_latin <- pig_latinator(book$txt,
+                                    addition_rule = "ei",
+                                    no_cons = "x")
+head(modified_pig_latin)
+```
+
+    ## [1] "Inei ethei idwaymei ofei isthei ourei ortalmei ifelei, Ixei oundfei emei inei axei oomyglei oodwei, ayastrei Onegei omfrei ethei athpei irectdei: andei ’enexei otei elltei Itei erewei onei easyei asktei, owhei avagesei ildwei Atthei orestfei, owhei obustrei andei oughrei itsei owthgrei, Ichwhei otei ememberrei onlyei, myei ismaydei Enewsrei, inei itternessbei otnei arfei omfrei eathdei. Etyei otei iscoursedei ofei atwhei erethei oodgei efellbei, Allei eelsei illwei Ixei elaterei iscover’ddei erethei. Owhei irstfei Ixei er’dentei itei Ixei arcescei ancei aysei, Uchsei eepyslei ullnessdei inei atthei antinstei eigh’dwei Myei ensessei owndei, enwhei ethei uetrei athpei Ixei eftlei, Utbei enwhei axei ountain’smei ootfei Ixei each’drei, erewhei os’dclei Ethei alleyvei, atthei adhei ierc’dpei myei earthei ithwei eaddrei, Ixei ook’dlei oftalei, andei awsei ishei ouldersshei oadbrei Eadyalrei estedvei ithwei atthei anet’splei eambei, Owhei eadslei allei andererswei afesei oughthrei eryevei aywei."
+
+# Test `pig_latinator`
+
+In this section, we teste the `pig_latinator` function.
+
+``` r
+# Test 1: Check errors
+test_that("Test errors", {
+  input_text <- "This is a test"
+  expect_error(pig_latinator(342),
+               "Input 'text' must be a character vector.")
+  expect_error(pig_latinator(input_text,
+                             342),
+               "Input 'addition_rule' must be a character.")
+  expect_error(pig_latinator(input_text,
+                             no_cons = 342),
+               "Input 'no_cons' must be a character.")
+  expect_error(pig_latinator(input_text,
+                             no_cons = "a"),
+               "Input 'no_cons' must be a consonant.")
+})
+```
+
+    ## Test passed 🥇
+
+``` r
+# Test 2: Check if function retains uppercase logic and diferent rules
+test_that("Uppercase logic is and punctuation retained", {
+  input_text <- "HELLO WORLD! This is a test. I eat late."
+  output1 <- pig_latinator(input_text)
+  output2 <- pig_latinator(input_text,
+                           addition_rule = "ei",
+                           no_cons = "x")
+  expect_equal(output1, 
+               "ELLOHAY ORLDWAY! Isthay isay away esttay. Iway eatay atelay.")
+  expect_equal(output2,
+               "ELLOHEI ORLDWEI! Isthei isei axei esttei. Ixei eatei atelei.")
+})
+```
+
+    ## Test passed 🥳
+
+``` r
+# Test 3: Check if function retains a vector of words
+test_that("Returns vector of words", {
+  input_text <- "This is a test"
+  output <- pig_latinator(input_text, concat = FALSE)
+  expect_length(output, 4)
+  expect_is(output, "character")
+})
+```
+
+    ## Test passed 🥳
