@@ -11,7 +11,6 @@ This repository contains two projects completed as part of **Option A - Strings 
 -   `exercise-1_book-analysis-files/`: Directory containing additional files generated during the analysis.
 -   `exercise-2_my-pig-latin-function.Rmd`: R Markdown file demonstrating creating and using a custom Pig Latin conversion function.
 -   `exercise-2_my-pig-latin-function.md`: Rendered Markdown document of the Pig Latin function.
--   `exercise-2_my-pig-latin-function-files/`: Directory containing supplementary files associated with the Pig Latin function.
 
 ## Exercise 1: Book Analysis of "The Divine Comedy"
 
